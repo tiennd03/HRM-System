@@ -1,0 +1,853 @@
+openapi: 3.0.3
+info:
+  title: HRM System API
+  description: >-
+    API quản lý nhân sự (HRM). Mock bằng JSON Server, mô phỏng backend Java Spring Boot
+    (Spring Data Page, search/filter/sort). Các endpoint danh sách trả về `Page<T>`.
+  version: 1.0.0
+  contact:
+    name: HRM Team
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Mock server (local)
+
+tags:
+  - name: Auth
+  - name: Employee
+  - name: Department
+  - name: Position
+  - name: Attendance
+  - name: LeaveRequest
+  - name: Payroll
+  - name: User
+  - name: Role
+  - name: Permission
+
+paths:
+  # ----------------- AUTH -----------------
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập
+      description: 'Mock: mọi tài khoản dùng mật khẩu `123456`. Username = mã nhân viên viết thường (vd `emp0002`).'
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { description: Sai tài khoản hoặc mật khẩu, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+        '403': { description: Tài khoản bị khóa, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Đăng xuất
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { message: { type: string, example: Đăng xuất thành công } }
+  /auth/profile:
+    get:
+      tags: [Auth]
+      summary: Thông tin tài khoản đang đăng nhập
+      description: 'Yêu cầu header `Authorization: Bearer <token>`.'
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ----------------- EMPLOYEE -----------------
+  /employees:
+    get:
+      tags: [Employee]
+      summary: Danh sách nhân viên (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: keyword, in: query, schema: { type: string }, description: Tìm theo mã/tên/email/SĐT }
+        - { name: departmentId, in: query, schema: { type: integer } }
+        - { name: positionId, in: query, schema: { type: integer } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/EmployeeStatus' } }
+        - { name: salary_gte, in: query, schema: { type: integer }, description: Lương tối thiểu }
+        - { name: salary_lte, in: query, schema: { type: integer }, description: Lương tối đa }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageEmployee' }
+    post:
+      tags: [Employee]
+      summary: Tạo nhân viên
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Employee' }
+  /employees/search:
+    post:
+      tags: [Employee]
+      summary: Tìm kiếm nâng cao nhân viên
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeSearchRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageEmployee' }
+  /employees/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [Employee]
+      summary: Chi tiết nhân viên
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Employee' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Employee]
+      summary: Cập nhật nhân viên
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EmployeeInput' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Employee' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Employee]
+      summary: Cập nhật một phần nhân viên
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EmployeeInput' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Employee' } } } }
+    delete:
+      tags: [Employee]
+      summary: Xóa nhân viên
+      responses:
+        '200': { description: OK }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ----------------- DEPARTMENT -----------------
+  /departments:
+    get:
+      tags: [Department]
+      summary: Danh sách phòng ban (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageDepartment' } } } }
+    post:
+      tags: [Department]
+      summary: Tạo phòng ban
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DepartmentInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Department' } } } } }
+  /departments/search:
+    post:
+      tags: [Department]
+      summary: Tìm kiếm phòng ban
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SearchRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageDepartment' } } } } }
+  /departments/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [Department]
+      summary: Chi tiết phòng ban
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Department' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Department]
+      summary: Cập nhật phòng ban
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DepartmentInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Department' } } } } }
+    delete:
+      tags: [Department]
+      summary: Xóa phòng ban
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  # ----------------- POSITION -----------------
+  /positions:
+    get:
+      tags: [Position]
+      summary: Danh sách chức danh (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: level, in: query, schema: { $ref: '#/components/schemas/PositionLevel' } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PagePosition' } } } }
+    post:
+      tags: [Position]
+      summary: Tạo chức danh
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PositionInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Position' } } } } }
+  /positions/search:
+    post:
+      tags: [Position]
+      summary: Tìm kiếm chức danh
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SearchRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PagePosition' } } } } }
+  /positions/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [Position]
+      summary: Chi tiết chức danh
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Position' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Position]
+      summary: Cập nhật chức danh
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PositionInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Position' } } } } }
+    delete:
+      tags: [Position]
+      summary: Xóa chức danh
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  # ----------------- ATTENDANCE -----------------
+  /attendances:
+    get:
+      tags: [Attendance]
+      summary: Danh sách chấm công (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: employeeId, in: query, schema: { type: integer } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/AttendanceStatus' } }
+        - { name: workDate_gte, in: query, schema: { type: string, format: date } }
+        - { name: workDate_lte, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageAttendance' } } } }
+    post:
+      tags: [Attendance]
+      summary: Tạo bản ghi chấm công
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AttendanceInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Attendance' } } } } }
+  /attendances/search:
+    post:
+      tags: [Attendance]
+      summary: Tìm kiếm chấm công
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AttendanceSearchRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageAttendance' } } } } }
+  /attendances/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [Attendance]
+      summary: Chi tiết chấm công
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Attendance' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Attendance]
+      summary: Cập nhật chấm công
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AttendanceInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Attendance' } } } } }
+    delete:
+      tags: [Attendance]
+      summary: Xóa chấm công
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  # ----------------- LEAVE REQUEST -----------------
+  /leaveRequests:
+    get:
+      tags: [LeaveRequest]
+      summary: Danh sách đơn nghỉ phép (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: employeeId, in: query, schema: { type: integer } }
+        - { name: leaveType, in: query, schema: { $ref: '#/components/schemas/LeaveType' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/LeaveStatus' } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageLeaveRequest' } } } }
+    post:
+      tags: [LeaveRequest]
+      summary: Tạo đơn nghỉ phép
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequestInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequest' } } } } }
+  /leaveRequests/search:
+    post:
+      tags: [LeaveRequest]
+      summary: Tìm kiếm đơn nghỉ phép
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SearchRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageLeaveRequest' } } } } }
+  /leaveRequests/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [LeaveRequest]
+      summary: Chi tiết đơn nghỉ phép
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequest' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [LeaveRequest]
+      summary: Cập nhật đơn nghỉ phép
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequestInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequest' } } } } }
+    delete:
+      tags: [LeaveRequest]
+      summary: Xóa đơn nghỉ phép
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  # ----------------- PAYROLL -----------------
+  /payrolls:
+    get:
+      tags: [Payroll]
+      summary: Danh sách bảng lương (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: employeeId, in: query, schema: { type: integer } }
+        - { name: period, in: query, schema: { type: string, example: '2026-06' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/PayrollStatus' } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PagePayroll' } } } }
+    post:
+      tags: [Payroll]
+      summary: Tạo bảng lương
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PayrollInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Payroll' } } } } }
+  /payrolls/search:
+    post:
+      tags: [Payroll]
+      summary: Tìm kiếm bảng lương
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SearchRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PagePayroll' } } } } }
+  /payrolls/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [Payroll]
+      summary: Chi tiết bảng lương
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Payroll' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Payroll]
+      summary: Cập nhật bảng lương
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PayrollInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Payroll' } } } } }
+    delete:
+      tags: [Payroll]
+      summary: Xóa bảng lương
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  # ----------------- USER -----------------
+  /users:
+    get:
+      tags: [User]
+      summary: Danh sách tài khoản (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: roleId, in: query, schema: { type: integer } }
+        - { name: enabled, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageUser' } } } }
+    post:
+      tags: [User]
+      summary: Tạo tài khoản
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UserInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } } }
+  /users/search:
+    post:
+      tags: [User]
+      summary: Tìm kiếm tài khoản
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SearchRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageUser' } } } } }
+  /users/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [User]
+      summary: Chi tiết tài khoản
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [User]
+      summary: Cập nhật tài khoản
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UserInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } } }
+    delete:
+      tags: [User]
+      summary: Xóa tài khoản
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  # ----------------- ROLE -----------------
+  /roles:
+    get:
+      tags: [Role]
+      summary: Danh sách vai trò (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PageRole' } } } }
+    post:
+      tags: [Role]
+      summary: Tạo vai trò
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RoleInput' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Role' } } } } }
+  /roles/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [Role]
+      summary: Chi tiết vai trò
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Role' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Role]
+      summary: Cập nhật vai trò
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RoleInput' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Role' } } } } }
+    delete:
+      tags: [Role]
+      summary: Xóa vai trò
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/NotFound' } }
+
+  # ----------------- PERMISSION -----------------
+  /permissions:
+    get:
+      tags: [Permission]
+      summary: Danh sách quyền (phân trang)
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/sort'
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: module, in: query, schema: { type: string } }
+        - { name: action, in: query, schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PagePermission' } } } }
+  /permissions/{id}:
+    parameters: [ { $ref: '#/components/parameters/id' } ]
+    get:
+      tags: [Permission]
+      summary: Chi tiết quyền
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Permission' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    page:
+      name: page
+      in: query
+      description: Số trang (bắt đầu từ 0)
+      schema: { type: integer, default: 0, minimum: 0 }
+    size:
+      name: size
+      in: query
+      description: Số bản ghi mỗi trang
+      schema: { type: integer, default: 10, minimum: 1 }
+    sort:
+      name: sort
+      in: query
+      description: 'Sắp xếp dạng "field,(asc|desc)". Có thể lặp lại nhiều lần.'
+      schema: { type: string, example: 'fullName,asc' }
+
+  responses:
+    NotFound:
+      description: Không tìm thấy
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Unauthorized:
+      description: Chưa xác thực / token không hợp lệ
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+
+  schemas:
+    # ---- Enums ----
+    EmployeeStatus: { type: string, enum: [ACTIVE, PROBATION, INACTIVE, TERMINATED] }
+    PositionLevel: { type: string, enum: [EXECUTIVE, DIRECTOR, MANAGER, LEAD, SENIOR, JUNIOR, INTERN] }
+    AttendanceStatus: { type: string, enum: [PRESENT, LATE, EARLY_LEAVE, ABSENT, ON_LEAVE] }
+    LeaveType: { type: string, enum: [ANNUAL, SICK, UNPAID, MATERNITY, MARRIAGE, BEREAVEMENT] }
+    LeaveStatus: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED] }
+    PayrollStatus: { type: string, enum: [DRAFT, APPROVED, PAID] }
+    Gender: { type: string, enum: [MALE, FEMALE] }
+
+    # ---- Entities ----
+    Employee:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        employeeCode: { type: string, example: EMP0001 }
+        fullName: { type: string, example: Nguyễn Văn An }
+        gender: { $ref: '#/components/schemas/Gender' }
+        dateOfBirth: { type: string, format: date }
+        email: { type: string, format: email }
+        phone: { type: string }
+        departmentId: { type: integer }
+        positionId: { type: integer }
+        joinDate: { type: string, format: date }
+        salary: { type: integer }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    EmployeeInput:
+      type: object
+      required: [fullName, departmentId, positionId]
+      properties:
+        employeeCode: { type: string }
+        fullName: { type: string }
+        gender: { $ref: '#/components/schemas/Gender' }
+        dateOfBirth: { type: string, format: date }
+        email: { type: string, format: email }
+        phone: { type: string }
+        departmentId: { type: integer }
+        positionId: { type: integer }
+        joinDate: { type: string, format: date }
+        salary: { type: integer }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+
+    Department:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string, example: HR }
+        name: { type: string, example: Phòng Nhân sự }
+        description: { type: string }
+    DepartmentInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+
+    Position:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string, example: POS01 }
+        name: { type: string, example: Trưởng phòng Nhân sự }
+        level: { $ref: '#/components/schemas/PositionLevel' }
+    PositionInput:
+      type: object
+      required: [code, name, level]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        level: { $ref: '#/components/schemas/PositionLevel' }
+
+    Attendance:
+      type: object
+      properties:
+        id: { type: integer }
+        employeeId: { type: integer }
+        workDate: { type: string, format: date }
+        checkIn: { type: string, nullable: true, example: '08:30' }
+        checkOut: { type: string, nullable: true, example: '17:45' }
+        workingHours: { type: number, format: float }
+        status: { $ref: '#/components/schemas/AttendanceStatus' }
+    AttendanceInput:
+      type: object
+      required: [employeeId, workDate, status]
+      properties:
+        employeeId: { type: integer }
+        workDate: { type: string, format: date }
+        checkIn: { type: string, nullable: true }
+        checkOut: { type: string, nullable: true }
+        workingHours: { type: number, format: float }
+        status: { $ref: '#/components/schemas/AttendanceStatus' }
+
+    LeaveRequest:
+      type: object
+      properties:
+        id: { type: integer }
+        employeeId: { type: integer }
+        leaveType: { $ref: '#/components/schemas/LeaveType' }
+        fromDate: { type: string, format: date }
+        toDate: { type: string, format: date }
+        totalDays: { type: integer }
+        reason: { type: string }
+        status: { $ref: '#/components/schemas/LeaveStatus' }
+        approvedBy: { type: integer, nullable: true }
+    LeaveRequestInput:
+      type: object
+      required: [employeeId, leaveType, fromDate, toDate]
+      properties:
+        employeeId: { type: integer }
+        leaveType: { $ref: '#/components/schemas/LeaveType' }
+        fromDate: { type: string, format: date }
+        toDate: { type: string, format: date }
+        totalDays: { type: integer }
+        reason: { type: string }
+        status: { $ref: '#/components/schemas/LeaveStatus' }
+        approvedBy: { type: integer, nullable: true }
+
+    Payroll:
+      type: object
+      properties:
+        id: { type: integer }
+        employeeId: { type: integer }
+        period: { type: string, example: '2026-06' }
+        baseSalary: { type: integer }
+        allowance: { type: integer }
+        bonus: { type: integer }
+        insurance: { type: integer }
+        tax: { type: integer }
+        deduction: { type: integer }
+        netSalary: { type: integer }
+        status: { $ref: '#/components/schemas/PayrollStatus' }
+    PayrollInput:
+      type: object
+      required: [employeeId, period, baseSalary]
+      properties:
+        employeeId: { type: integer }
+        period: { type: string }
+        baseSalary: { type: integer }
+        allowance: { type: integer }
+        bonus: { type: integer }
+        insurance: { type: integer }
+        tax: { type: integer }
+        deduction: { type: integer }
+        netSalary: { type: integer }
+        status: { $ref: '#/components/schemas/PayrollStatus' }
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        employeeId: { type: integer }
+        email: { type: string, format: email }
+        roleId: { type: integer }
+        enabled: { type: boolean }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+    UserInput:
+      type: object
+      required: [username, roleId]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+        employeeId: { type: integer }
+        email: { type: string, format: email }
+        roleId: { type: integer }
+        enabled: { type: boolean }
+
+    Role:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        permissionIds: { type: array, items: { type: integer } }
+    RoleInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        permissionIds: { type: array, items: { type: integer } }
+
+    Permission:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string, example: EMPLOYEE_VIEW }
+        name: { type: string }
+        module: { type: string, example: employee }
+        action: { type: string, enum: [VIEW, CREATE, UPDATE, DELETE] }
+
+    # ---- Search requests ----
+    SearchRequest:
+      type: object
+      description: Yêu cầu tìm kiếm chung
+      properties:
+        keyword: { type: string }
+        page: { type: integer, default: 0 }
+        size: { type: integer, default: 10 }
+        sort: { type: string, example: 'id,desc' }
+    EmployeeSearchRequest:
+      allOf:
+        - $ref: '#/components/schemas/SearchRequest'
+        - type: object
+          properties:
+            departmentId: { type: integer }
+            positionId: { type: integer }
+            status: { $ref: '#/components/schemas/EmployeeStatus' }
+            salary_gte: { type: integer }
+            salary_lte: { type: integer }
+    AttendanceSearchRequest:
+      allOf:
+        - $ref: '#/components/schemas/SearchRequest'
+        - type: object
+          properties:
+            employeeId: { type: integer }
+            status: { $ref: '#/components/schemas/AttendanceStatus' }
+            workDate_gte: { type: string, format: date }
+            workDate_lte: { type: string, format: date }
+
+    # ---- Page wrappers (Spring Data) ----
+    SortInfo:
+      type: object
+      properties:
+        empty: { type: boolean }
+        sorted: { type: boolean }
+        unsorted: { type: boolean }
+    Pageable:
+      type: object
+      properties:
+        pageNumber: { type: integer }
+        pageSize: { type: integer }
+        offset: { type: integer }
+        paged: { type: boolean }
+        unpaged: { type: boolean }
+        sort: { $ref: '#/components/schemas/SortInfo' }
+    PageMeta:
+      type: object
+      properties:
+        pageable: { $ref: '#/components/schemas/Pageable' }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+        number: { type: integer }
+        size: { type: integer }
+        numberOfElements: { type: integer }
+        first: { type: boolean }
+        last: { type: boolean }
+        empty: { type: boolean }
+        sort: { $ref: '#/components/schemas/SortInfo' }
+
+    PageEmployee:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/Employee' } } }
+    PageDepartment:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/Department' } } }
+    PagePosition:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/Position' } } }
+    PageAttendance:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/Attendance' } } }
+    PageLeaveRequest:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/LeaveRequest' } } }
+    PagePayroll:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/Payroll' } } }
+    PageUser:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/User' } } }
+    PageRole:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/Role' } } }
+    PagePermission:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          properties: { content: { type: array, items: { $ref: '#/components/schemas/Permission' } } }
+
+    ApiError:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer, example: 404 }
+        error: { type: string, example: Not Found }
+        message: { type: string }
+        path: { type: string }
+
+    # ---- Auth ----
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, example: emp0002 }
+        password: { type: string, format: password, example: '123456' }
+    LoginResponse:
+      type: object
+      properties:
+        accessToken: { type: string, example: mockjwt.eyJzdWIiOjIsInVzZXJuYW1lIjoiZW1wMDAwMiJ9 }
+        tokenType: { type: string, example: Bearer }
+        expiresIn: { type: integer, example: 3600 }
+        user: { $ref: '#/components/schemas/AuthUser' }
+    AuthUser:
+      type: object
+      description: Tài khoản kèm vai trò, danh sách quyền và hồ sơ nhân viên (đã ẩn passwordHash)
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        employeeId: { type: integer }
+        email: { type: string, format: email }
+        roleId: { type: integer }
+        enabled: { type: boolean }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        role:
+          type: object
+          properties:
+            id: { type: integer }
+            code: { type: string, example: HR_MANAGER }
+            name: { type: string }
+        permissions:
+          type: array
+          items: { type: string, example: EMPLOYEE_VIEW }
+        employee: { $ref: '#/components/schemas/Employee' }
